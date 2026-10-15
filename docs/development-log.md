@@ -42,3 +42,12 @@
 - Puppeteerスクリプト (`scripts/capture_screens.js`) を作成し、ヘッドレスブラウザでローカルサーバー上の実機画面を自動撮影
 - リアルタイム取得（名古屋・快晴・23.7℃）、ミッション完了状態、DEMO猛暑シナリオ、DEMO雷雨シナリオ、デスクトップ表示の各スクリーンショットを `assets/screenshots/` および `slides/img/` に保存完了
 
+### 2026-10-15: STEP 6 GitHub Pages公開 & 本番環境検証
+- リモートリポジトリ `https://github.com/okc33/api-apuri` を設定
+- 初期コミットとローカルコミットをリベース統合し、`main` ブランチへ正常プッシュ完了
+- 本番公開URL: `https://okc33.github.io/api-apuri/`
+- 本番URLに対して Puppeteer 検証スクリプト (`scripts/verify_live.js`) を実行
+  - HTTPステータス 200 OK、HTML・CSS・JS の正常ロード確認
+  - Open-Meteo API への本番通信成功（名古屋: 23.8℃, 快晴, ミッション「外に出て10分間歩く」生成を確認）
+  - ファビコン404エラーを解消するインラインSVGアイコンを追加し再デプロイ完了
+
