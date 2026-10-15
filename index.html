@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Weather Mission — 今日の天気を、今日の行動に変える</title>
+  <meta name="description" content="Open-Meteo APIの気象データから毎日の生活改善ミッションを提案するレトロRPG風Webアプリ">
+  <!-- Google Fonts: DotGothic16 & Press Start 2P -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DotGothic16&family=Press+Start+2P&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <div class="scanlines" aria-hidden="true"></div>
+  
+  <div class="device-frame">
+    <!-- ヘッダーエリア -->
+    <header class="app-header">
+      <div class="system-status">
+        <span class="status-dot"></span>
+        <span class="status-text">SYS.ONLINE // PWA-PROTO</span>
+      </div>
+      <h1 class="glitch-title" data-text="WEATHER MISSION">WEATHER MISSION</h1>
+      <p class="tagline">今日の天気を、今日の行動に変える。</p>
+    </header>
+
+    <!-- コントロールエリア（都市選択・更新） -->
+    <section class="control-panel pixel-box" aria-label="地域選択とモード切替">
+      <div class="control-row">
+        <label for="city-select" class="pixel-label">AREA SELECT:</label>
+        <select id="city-select" class="pixel-select">
+          <option value="nagoya" selected>名古屋 (Nagoya)</option>
+          <option value="tokyo">東京 (Tokyo)</option>
+          <option value="osaka">大阪 (Osaka)</option>
+        </select>
+        <button id="refresh-btn" class="pixel-btn" title="最新データを再取得">
+          <span class="btn-icon">↻</span> 更新
+        </button>
+      </div>
+
+      <!-- デモモード用シナリオ選択（発表・検証用） -->
+      <div class="demo-switch-row">
+        <label for="demo-select" class="pixel-label demo-label">
+          <span class="badge-demo">DEMO</span> シナリオ検証:
+        </label>
+        <select id="demo-select" class="pixel-select demo-select">
+          <option value="live">⚡ リアルタイムAPIデータ</option>
+          <option value="heatwave">🔥 条件1: 猛暑日 (36.5℃)</option>
+          <option value="severe_rain">⛈️ 条件2: 大雨・雷雨 (WMO 95)</option>
+          <option value="high_precip">🌧️ 条件3: 降水確率高 (70%)</option>
+          <option value="cold">❄️ 条件4: 真冬・寒冷 (8.0℃)</option>
+          <option value="outdoor_clear">🚶 条件5: 通常・快適 (22.0℃)</option>
+        </select>
+      </div>
+    </section>
+
+    <!-- メインコンテンツ領域（状態に応じて切り替え） -->
+    <main id="main-content" class="main-content">
+      <!-- ローディング表示 -->
+      <div id="loading-view" class="state-view pixel-box loading-box" style="display: none;" role="status">
+        <div class="pixel-spinner"></div>
+        <p class="loading-text">気象衛星データを受信中...</p>
+        <span class="sub-loading">FETCHING OPEN-METEO TELEMETRY</span>
+      </div>
+
+      <!-- エラー表示 -->
+      <div id="error-view" class="state-view pixel-box error-box" style="display: none;" role="alert">
+        <div class="error-badge">⚠️ COMM ERROR</div>
+        <h2 id="error-title" class="error-title">データ取得に失敗しました</h2>
+        <p id="error-message" class="error-message"></p>
+        <div class="error-actions">
+          <button id="retry-btn" class="pixel-btn retry-btn">再試行</button>
+          <button id="fallback-demo-btn" class="pixel-btn demo-btn">DEMOデータで試す</button>
+        </div>
+      </div>
+
+      <!-- 成功表示（天気情報 ＋ ミッションカード） -->
+      <div id="success-view" class="state-view">
+        <!-- バナー（DEMO時のみ表示） -->
+        <div id="demo-notice-banner" class="demo-banner pixel-box" style="display: none;">
+          <span class="demo-flag">⚠️ DEMO MODE ACTIVE</span>
+          <span id="demo-notice-text">固定検証用データでシミュレーション中</span>
+        </div>
+
+        <!-- 天気サマリーカード -->
+        <section class="weather-card pixel-box" aria-label="現在の天気情報">
+          <div class="card-header">
+            <span class="section-tag">[ TELEMETRY ]</span>
+            <span id="target-city-name" class="city-name">名古屋</span>
+          </div>
+          <div class="weather-grid">
+            <div class="weather-icon-wrap">
+              <span id="weather-icon" class="weather-icon" role="img" aria-label="天候アイコン">☀️</span>
+              <span id="weather-label" class="weather-label">快晴</span>
+            </div>
+            <div class="weather-metrics">
+              <div class="metric-item">
+                <span class="metric-label">現在気温:</span>
+                <span class="metric-val"><span id="temp-current">--</span><span class="unit">°C</span></span>
+              </div>
+              <div class="metric-item">
+                <span class="metric-label">最高気温:</span>
+                <span class="metric-val highlight-temp"><span id="temp-max">--</span><span class="unit">°C</span></span>
+              </div>
+              <div class="metric-item">
+                <span class="metric-label">降水確率:</span>
+                <span class="metric-val highlight-rain"><span id="precip-prob">--</span><span class="unit">%</span></span>
+              </div>
+            </div>
+          </div>
+          <div class="weather-footer">
+            <span class="meta-item">予報対象日: <strong id="forecast-date">----/--/--</strong></span>
+            <span class="meta-item">受信時刻: <strong id="fetched-time">--:--</strong></span>
+          </div>
+        </section>
+
+        <!-- ミッション提案カード -->
+        <section class="mission-card pixel-box" aria-label="本日のミッション">
+          <div class="card-header mission-header">
+            <span class="section-tag">[ TODAY'S MISSION ]</span>
+            <span id="mission-rule-badge" class="rule-badge">RULE #5</span>
+          </div>
+
+          <div class="mission-body">
+            <div class="mission-title-row">
+              <span class="mission-bullet">▶</span>
+              <h2 id="mission-title" class="mission-title">外に出て10分間歩く</h2>
+            </div>
+
+            <p id="mission-desc" class="mission-desc">
+              外の空気を吸いながら、近所を10分間リフレッシュウォーキングしましょう。
+            </p>
+
+            <div class="mission-reason-box">
+              <span class="reason-label">【判定理由 / WHY】</span>
+              <p id="mission-reason" class="reason-text">
+                猛暑・悪天候・雨・低温のいずれにも該当しないため、屋外運動を選択しました。
+              </p>
+            </div>
+
+            <div class="mission-meta-row">
+              <span class="badge-tag" id="mission-category">屋外行動</span>
+              <span class="badge-tag" id="mission-duration">⏱️ 所要 10 分</span>
+              <span class="badge-tag status-incomplete" id="mission-status-badge">未達成</span>
+            </div>
+          </div>
+
+          <!-- アクションボタンエリア -->
+          <div class="mission-actions">
+            <button id="complete-btn" class="pixel-btn mission-action-btn">
+              <span class="btn-star">★</span> MISSION COMPLETE!
+            </button>
+            <button id="cancel-mission-btn" class="pixel-btn-secondary" style="display: none;">
+              未達成に戻す
+            </button>
+          </div>
+        </section>
+
+        <!-- 達成履歴アコーディオン -->
+        <section class="history-section pixel-box" aria-label="ミッション達成記録">
+          <details id="history-details" class="pixel-details">
+            <summary class="details-summary">
+              <span>📜 達成ログ (<span id="history-count">0</span>件)</span>
+              <span class="toggle-icon">▼</span>
+            </summary>
+            <div class="history-content">
+              <div class="history-controls">
+                <button id="clear-history-btn" class="pixel-btn-tiny" title="履歴を消去">ログ消去</button>
+              </div>
+              <ul id="history-list" class="history-list">
+                <li class="empty-log">達成ログはまだありません。ミッションを達成して記録しましょう！</li>
+              </ul>
+            </div>
+          </details>
+        </section>
+      </div>
+    </main>
+
+    <!-- フッター・免責・クレジット -->
+    <footer class="app-footer">
+      <div class="disclaimer">
+        ※ 本ミッション判定は経営情報システム学習用の暫定ルールであり、医学・気象学的な保証はありません。体調と周囲の安全を最優先にしてください。
+      </div>
+      <div class="credits">
+        <span>Weather Data: <a href="https://open-meteo.com/" target="_blank" rel="noopener noreferrer">Open-Meteo API</a> (Non-Commercial Free Tier)</span>
+        <span class="separator">|</span>
+        <span>Prototype for <strong>Life Pilot: Reboot</strong></span>
+      </div>
+    </footer>
+  </div>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>

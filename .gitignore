@@ -1,0 +1,15 @@
+# Node & Python artifacts
+node_modules/
+__pycache__/
+*.py[cod]
+.venv/
+dist/
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Environment variables & secrets
+.env
+*.local

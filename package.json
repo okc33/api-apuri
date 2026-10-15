@@ -1,0 +1,12 @@
+{
+  "name": "weather-mission",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Weather-based lifestyle mission suggestion web app",
+  "scripts": {
+    "test": "node tests/mission.test.js"
+  },
+  "dependencies": {
+    "puppeteer": "^25.14.0"
+  }
+}
