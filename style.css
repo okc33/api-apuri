@@ -572,6 +572,20 @@ body {
   gap: 8px;
 }
 
+.location-status, .ai-status { min-height: 1.1em; margin: 6px 0 0; color: var(--text-dim); font-size: 0.76rem; }
+.location-btn { white-space: nowrap; }
+.ai-panel { margin-top: 14px; background: #0e1622; }
+.preference-row { display: flex; gap: 8px; flex-wrap: wrap; margin: 10px 0; }
+.preference-row label { display: flex; align-items: center; gap: 4px; color: var(--text-dim); font-size: 0.78rem; }
+.preference-row .pixel-select { padding: 4px 6px; font-size: 0.75rem; }
+.ai-candidate-list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
+.ai-candidate { display: flex; flex-direction: column; gap: 6px; padding: 9px; background: #080f1a; border: 1px solid #334155; }
+.ai-candidate h3 { margin: 0; color: var(--accent-cyan); font-size: 0.85rem; }
+.ai-candidate p { margin: 0; color: #cbd5e1; font-size: 0.75rem; line-height: 1.5; }
+.ai-candidate .candidate-meta { color: var(--text-dim); font-size: 0.7rem; }
+.ai-candidate button { margin-top: auto; }
+@media (max-width: 700px) { .ai-candidate-list { grid-template-columns: 1fr; } }
+
 .mission-action-btn {
   width: 100%;
   padding: 12px;

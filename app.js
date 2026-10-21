@@ -3,8 +3,9 @@
  * アプリケーション状態管理 & UIインタラクション
  */
 
-import { CITIES, fetchWeatherData, DEMO_PRESETS } from './weather.js';
+import { CITIES, fetchWeatherData, fetchWeatherDataByCoordinates, DEMO_PRESETS } from './weather.js';
 import { determineMission } from './mission.js';
+import { generateMissionCandidates } from './ai.js';
 
 // LocalStorage キー
 const STORAGE_KEY_HISTORY = 'weather_mission_completed_log_v1';
@@ -12,8 +13,11 @@ const STORAGE_KEY_HISTORY = 'weather_mission_completed_log_v1';
 // アプリケーション状態
 const state = {
   selectedCity: 'nagoya',
+  locationMode: 'city',
+  coordinates: null,
   currentWeather: null,
   currentMission: null,
+  aiCandidates: [],
   activeDemoScenario: 'live',
   isLoading: false,
   history: []
@@ -24,6 +28,8 @@ const elements = {
   citySelect: document.getElementById('city-select'),
   demoSelect: document.getElementById('demo-select'),
   refreshBtn: document.getElementById('refresh-btn'),
+  locationBtn: document.getElementById('location-btn'),
+  locationStatus: document.getElementById('location-status'),
   retryBtn: document.getElementById('retry-btn'),
   fallbackDemoBtn: document.getElementById('fallback-demo-btn'),
 
@@ -59,7 +65,13 @@ const elements = {
 
   historyCount: document.getElementById('history-count'),
   historyList: document.getElementById('history-list'),
-  clearHistoryBtn: document.getElementById('clear-history-btn')
+  clearHistoryBtn: document.getElementById('clear-history-btn'),
+  generateAiBtn: document.getElementById('generate-ai-btn'),
+  aiStatus: document.getElementById('ai-status'),
+  aiCandidateList: document.getElementById('ai-candidate-list'),
+  preferenceEnvironment: document.getElementById('preference-environment'),
+  preferenceDuration: document.getElementById('preference-duration'),
+  preferenceIntensity: document.getElementById('preference-intensity')
 };
 
 /**
@@ -71,7 +83,7 @@ function initApp() {
   setupEventListeners();
 
   // 初回データ読み込み
-  loadWeatherAndMission();
+  requestCurrentLocation(true);
 }
 
 /**
@@ -94,6 +106,15 @@ function setupEventListeners() {
   // 更新ボタン
   elements.refreshBtn.addEventListener('click', () => {
     loadWeatherAndMission();
+  });
+
+  elements.locationBtn.addEventListener('click', () => requestCurrentLocation(false));
+  elements.generateAiBtn.addEventListener('click', generateAiMissions);
+
+  elements.aiCandidateList.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-candidate-index]');
+    if (!button) return;
+    selectAiCandidate(Number(button.dataset.candidateIndex));
   });
 
   // 再試行ボタン
@@ -145,11 +166,15 @@ async function loadWeatherAndMission() {
   setLoadingState(true);
 
   try {
-    const weather = await fetchWeatherData(state.selectedCity, { timeoutMs: 8000 });
+    const weather = state.locationMode === 'current' && state.coordinates
+      ? await fetchWeatherDataByCoordinates(state.coordinates.latitude, state.coordinates.longitude, { timeoutMs: 8000 })
+      : await fetchWeatherData(state.selectedCity, { timeoutMs: 8000 });
     const mission = determineMission(weather);
 
     state.currentWeather = weather;
     state.currentMission = mission;
+    state.aiCandidates = [];
+    renderAiCandidates();
 
     // 前回の完了状態を引き継ぐかチェック (同日・同都市・同ミッションなら)
     checkIfAlreadyCompleted(mission);
@@ -163,6 +188,44 @@ async function loadWeatherAndMission() {
   }
 }
 
+function requestCurrentLocation(silent) {
+  if (state.locationMode === 'current') {
+    state.locationMode = 'city';
+    state.coordinates = null;
+    elements.citySelect.disabled = false;
+    elements.locationStatus.textContent = '都市選択モードに戻しました。';
+    loadWeatherAndMission();
+    return;
+  }
+  if (!navigator.geolocation) {
+    if (!silent) elements.locationStatus.textContent = 'このブラウザは位置情報に対応していません。都市を選択してください。';
+    return;
+  }
+  elements.locationStatus.textContent = '現在地を取得しています…';
+  elements.locationBtn.disabled = true;
+  navigator.geolocation.getCurrentPosition(
+    ({ coords }) => {
+      state.locationMode = 'current';
+      state.coordinates = { latitude: coords.latitude, longitude: coords.longitude };
+      elements.locationStatus.textContent = '現在地を使用中（座標は保存しません）';
+      elements.citySelect.disabled = true;
+      loadWeatherAndMission();
+      elements.locationBtn.disabled = false;
+    },
+    (error) => {
+      state.locationMode = 'city';
+      state.coordinates = null;
+      elements.citySelect.disabled = false;
+      elements.locationStatus.textContent = silent
+        ? '現在地を取得できないため、名古屋の天気を表示します。'
+        : `現在地を取得できませんでした（${error.message || '許可されていません'}）。`;
+      loadWeatherAndMission();
+      elements.locationBtn.disabled = false;
+    },
+    { enableHighAccuracy: false, timeout: 8000, maximumAge: 300000 }
+  );
+}
+
 /**
  * DEMO検証用シナリオを適用
  * @param {string} scenarioKey 
@@ -174,8 +237,58 @@ function applyDemoScenario(scenarioKey) {
   state.activeDemoScenario = scenarioKey;
   state.currentWeather = JSON.parse(JSON.stringify(preset.data));
   state.currentMission = determineMission(state.currentWeather);
+  state.aiCandidates = [];
+  renderAiCandidates();
 
   renderSuccess();
+}
+
+async function generateAiMissions() {
+  if (!state.currentWeather || !state.currentMission) return;
+  elements.generateAiBtn.disabled = true;
+  elements.aiStatus.textContent = 'AI候補を生成しています…';
+  try {
+    const candidates = await generateMissionCandidates({
+      weather: state.currentWeather,
+      baseMission: state.currentMission,
+      preferences: {
+        environment: elements.preferenceEnvironment.value,
+        durationMinutes: Number(elements.preferenceDuration.value),
+        intensity: elements.preferenceIntensity.value
+      }
+    });
+    state.aiCandidates = candidates;
+    elements.aiStatus.textContent = `${candidates.length}件の候補を生成しました。`;
+    renderAiCandidates();
+  } catch (error) {
+    state.aiCandidates = [];
+    renderAiCandidates();
+    elements.aiStatus.textContent = 'AI候補を取得できないため、固定ミッションを表示しています。';
+    console.warn('AI mission generation failed:', error);
+  } finally {
+    elements.generateAiBtn.disabled = false;
+  }
+}
+
+function renderAiCandidates() {
+  if (!elements.aiCandidateList) return;
+  elements.aiCandidateList.innerHTML = state.aiCandidates.map((candidate, index) => `
+    <article class="ai-candidate">
+      <h3>${escapeHtml(candidate.title)}</h3>
+      <p>${escapeHtml(candidate.description)}</p>
+      <p>${escapeHtml(candidate.reason)}</p>
+      <span class="candidate-meta">${candidate.durationMinutes}分 / ${escapeHtml(candidate.safetyNote || '安全条件を確認済み')}</span>
+      <button class="pixel-btn" type="button" data-candidate-index="${index}">このミッションを選ぶ</button>
+    </article>
+  `).join('');
+}
+
+function selectAiCandidate(index) {
+  const candidate = state.aiCandidates[index];
+  if (!candidate) return;
+  state.currentMission = { ...candidate, completed: false };
+  renderSuccess();
+  elements.aiStatus.textContent = '選択したAIミッションを表示中です。';
 }
 
 /**
@@ -282,7 +395,8 @@ function toggleMissionComplete(forceState = null) {
       cityName: state.currentWeather.city.name,
       tempMax: state.currentWeather.daily.tempMax,
       weatherLabel: state.currentWeather.current.weatherLabel,
-      isDemo: Boolean(state.currentWeather.isDemo)
+      isDemo: Boolean(state.currentWeather.isDemo),
+      source: state.currentMission.source || 'rule'
     };
     state.history.unshift(entry);
     saveHistoryToStorage();

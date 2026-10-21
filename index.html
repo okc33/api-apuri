@@ -38,7 +38,9 @@
         <button id="refresh-btn" class="pixel-btn" title="最新データを再取得">
           <span class="btn-icon">↻</span> 更新
         </button>
+        <button id="location-btn" class="pixel-btn location-btn" type="button">📍 現在地を使う</button>
       </div>
+      <p id="location-status" class="location-status" role="status"></p>
 
       <!-- デモモード用シナリオ選択（発表・検証用） -->
       <div class="demo-switch-row">
@@ -159,6 +161,38 @@
         </section>
 
         <!-- 達成履歴アコーディオン -->
+        <section class="ai-panel pixel-box" aria-label="AIミッション候補">
+          <div class="card-header">
+            <span class="section-tag">[ AI MISSION LAB ]</span>
+            <span class="badge-demo">OPTIONAL</span>
+          </div>
+          <div class="preference-row">
+            <label>場所
+              <select id="preference-environment" class="pixel-select">
+                <option value="any">おまかせ</option>
+                <option value="indoor">室内</option>
+                <option value="outdoor">屋外</option>
+              </select>
+            </label>
+            <label>時間
+              <select id="preference-duration" class="pixel-select">
+                <option value="5">5分</option>
+                <option value="10" selected>10分</option>
+                <option value="20">20分</option>
+              </select>
+            </label>
+            <label>強度
+              <select id="preference-intensity" class="pixel-select">
+                <option value="light" selected>軽め</option>
+                <option value="moderate">普通</option>
+              </select>
+            </label>
+          </div>
+          <button id="generate-ai-btn" class="pixel-btn" type="button">AI候補を生成</button>
+          <p id="ai-status" class="ai-status" role="status">固定ミッションを表示中。AI候補は任意で生成できます。</p>
+          <div id="ai-candidate-list" class="ai-candidate-list" aria-live="polite"></div>
+        </section>
+
         <section class="history-section pixel-box" aria-label="ミッション達成記録">
           <details id="history-details" class="pixel-details">
             <summary class="details-summary">

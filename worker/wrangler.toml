@@ -1,0 +1,6 @@
+name = "weather-mission-ai"
+main = "src/index.js"
+compatibility_date = "2026-10-21"
+
+[vars]
+ALLOWED_ORIGIN = "https://okc33.github.io"

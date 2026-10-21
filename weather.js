@@ -25,6 +25,83 @@ export const CITIES = {
   }
 };
 
+/**
+ * Fetch weather for an arbitrary browser-provided location.
+ * Coordinates are intentionally kept in memory only; callers should not persist them.
+ */
+export async function fetchWeatherDataByCoordinates(latitude, longitude, options = {}) {
+  if (!Number.isFinite(Number(latitude)) || !Number.isFinite(Number(longitude))) {
+    throw new Error('Invalid location coordinates');
+  }
+
+  const lat = Number(latitude);
+  const lon = Number(longitude);
+  if (lat < -90 || lat > 90 || lon < -180 || lon > 180) {
+    throw new Error('Location coordinates are out of range');
+  }
+
+  const timeoutMs = options.timeoutMs || 8000;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const params = new URLSearchParams({
+    latitude: String(lat),
+    longitude: String(lon),
+    current: 'temperature_2m,weather_code',
+    daily: 'temperature_2m_max,precipitation_probability_max',
+    timezone: 'auto',
+    forecast_days: '1'
+  });
+
+  try {
+    const res = await fetch(`https://api.open-meteo.com/v1/forecast?${params}`, {
+      method: 'GET',
+      signal: controller.signal,
+      headers: { Accept: 'application/json' }
+    });
+    if (!res.ok) throw new Error(`Weather API error (${res.status})`);
+    const data = await res.json();
+    if (!data.current || typeof data.current.temperature_2m !== 'number') {
+      throw new Error('Weather API response is missing current temperature');
+    }
+    if (!data.daily || !Array.isArray(data.daily.temperature_2m_max) || !data.daily.temperature_2m_max.length) {
+      throw new Error('Weather API response is missing daily forecast');
+    }
+
+    const info = getWeatherInfo(data.current.weather_code);
+    return {
+      isDemo: false,
+      isCurrentLocation: true,
+      fetchedAt: new Date().toISOString(),
+      city: { id: 'current-location', name: '現在地', lat, lon },
+      current: {
+        time: data.current.time,
+        temperature: data.current.temperature_2m,
+        weatherCode: data.current.weather_code,
+        weatherLabel: info.label,
+        weatherIcon: info.icon,
+        isSevere: info.isSevere
+      },
+      daily: {
+        targetDate: data.daily.time?.[0] || 'unknown',
+        tempMax: data.daily.temperature_2m_max[0],
+        precipProbMax: Array.isArray(data.daily.precipitation_probability_max)
+          ? data.daily.precipitation_probability_max[0]
+          : null
+      },
+      rawUnits: {
+        temperature: data.current_units?.temperature_2m || '°C',
+        precipitationProbability: data.daily_units?.precipitation_probability_max || '%'
+      },
+      timezone: data.timezone || 'auto'
+    };
+  } catch (error) {
+    if (error.name === 'AbortError') throw new Error(`Weather request timed out (${timeoutMs / 1000}s)`);
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 // WMO 天候コード対応表（定義・日本語名・ピクセル風アイコン・悪天候判定）
 // 参考: WMO Code Table 4677 / Open-Meteo Documentation
 export const WMO_CODES = {
