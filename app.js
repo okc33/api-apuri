@@ -6,6 +6,8 @@
 import { CITIES, fetchWeatherData, fetchWeatherDataByCoordinates, DEMO_PRESETS } from './weather.js';
 import { determineMission } from './mission.js';
 import { generateMissionCandidates } from './ai.js';
+import { MOODS, PERSONAS, applyMissionResult, loadProfile, personaFor, personaLine, saveProfile, setMood } from './profile.js';
+import { createShakeDetector, speak, stopSpeaking, stopVibration, vibrate } from './intervention.js';
 
 // LocalStorage キー
 const STORAGE_KEY_HISTORY = 'weather_mission_completed_log_v1';
@@ -20,7 +22,10 @@ const state = {
   aiCandidates: [],
   activeDemoScenario: 'live',
   isLoading: false,
-  history: []
+  history: [],
+  profile: null,
+  shakeDetector: null,
+  dialogueTimer: null
 };
 
 // DOM 要素への参照
@@ -71,15 +76,32 @@ const elements = {
   aiCandidateList: document.getElementById('ai-candidate-list'),
   preferenceEnvironment: document.getElementById('preference-environment'),
   preferenceDuration: document.getElementById('preference-duration'),
-  preferenceIntensity: document.getElementById('preference-intensity')
+  preferenceIntensity: document.getElementById('preference-intensity'),
+  moodSelect: document.getElementById('mood-select'),
+  personaLevel: document.getElementById('persona-level'),
+  personaCharacter: document.getElementById('persona-character'),
+  dialogueSpeaker: document.getElementById('dialogue-speaker'),
+  personaName: document.getElementById('persona-name'),
+  personaTone: document.getElementById('persona-tone'),
+  syncRate: document.getElementById('sync-rate'),
+  syncRateLabel: document.getElementById('sync-rate-label'),
+  debtRate: document.getElementById('debt-rate'),
+  debtRateLabel: document.getElementById('debt-rate-label'),
+  pilotDialogue: document.getElementById('pilot-dialogue'),
+  speakBtn: document.getElementById('speak-btn'),
+  stopInterventionBtn: document.getElementById('stop-intervention-btn'),
+  interventionStatus: document.getElementById('intervention-status'),
+  shakeBtn: document.getElementById('shake-btn')
 };
 
 /**
  * 初期化処理
  */
 function initApp() {
+  state.profile = loadProfile();
   loadHistoryFromStorage();
   renderHistory();
+  renderPilotProfile();
   setupEventListeners();
 
   // 初回データ読み込み
@@ -157,6 +179,22 @@ function setupEventListeners() {
       renderHistory();
     }
   });
+
+  elements.moodSelect.addEventListener('change', (event) => {
+    state.profile = saveProfile(setMood(state.profile, event.target.value));
+    renderPilotProfile();
+    announcePilot('intro');
+  });
+
+  elements.speakBtn.addEventListener('click', () => announcePilot(state.currentMission ? 'mission' : 'intro'));
+  elements.stopInterventionBtn.addEventListener('click', () => {
+    stopSpeaking();
+    stopVibration();
+    state.shakeDetector?.stop();
+    elements.shakeBtn.textContent = '📱 シェイク判定を開始';
+    elements.interventionStatus.textContent = '介入を停止しました。';
+  });
+  elements.shakeBtn.addEventListener('click', startShakeDetection);
 }
 
 /**
@@ -254,7 +292,11 @@ async function generateAiMissions() {
       preferences: {
         environment: elements.preferenceEnvironment.value,
         durationMinutes: Number(elements.preferenceDuration.value),
-        intensity: elements.preferenceIntensity.value
+        intensity: elements.preferenceIntensity.value,
+        mood: state.profile.mood,
+        personaId: state.profile.personaId,
+        syncRate: state.profile.syncRate,
+        debt: state.profile.debt
       }
     });
     state.aiCandidates = candidates;
@@ -331,6 +373,7 @@ function renderSuccess() {
 
   const w = state.currentWeather;
   const m = state.currentMission;
+  renderPilotProfile();
 
   // DEMOバナーの表示制御
   if (w.isDemo) {
@@ -355,7 +398,7 @@ function renderSuccess() {
   elements.fetchedTime.textContent = fetchDate.toLocaleTimeString('ja-JP');
 
   // ミッション情報の描画
-  elements.missionRuleBadge.textContent = `RULE #${m.priority} [${m.ruleId}]`;
+  elements.missionRuleBadge.textContent = `優先度 ${m.priority}`;
   elements.missionTitle.textContent = m.title;
   elements.missionDesc.textContent = m.description;
   elements.missionReason.textContent = m.reason;
@@ -371,6 +414,7 @@ function renderSuccess() {
 
   // 完了状態の描画更新
   updateMissionStatusUI(m.completed);
+  if (!m.completed) announcePilot('mission', false);
 }
 
 /**
@@ -381,7 +425,10 @@ function toggleMissionComplete(forceState = null) {
   if (!state.currentMission) return;
 
   const newState = forceState !== null ? forceState : !state.currentMission.completed;
+  if (newState === Boolean(state.currentMission.completed)) return;
   state.currentMission.completed = newState;
+  state.profile = saveProfile(applyMissionResult(state.profile, newState));
+  renderPilotProfile();
 
   if (newState) {
     // 達成記録をログに追加
@@ -401,9 +448,93 @@ function toggleMissionComplete(forceState = null) {
     state.history.unshift(entry);
     saveHistoryToStorage();
     renderHistory();
+    announcePilot('complete');
+    vibrate([80, 80, 160]);
+  } else {
+    announcePilot('cancel');
+    vibrate([120, 100, 120]);
   }
 
   updateMissionStatusUI(newState);
+}
+
+function renderPilotProfile() {
+  if (!state.profile || !elements.personaName) return;
+  const profile = state.profile;
+  const persona = PERSONAS[profile.personaId] || PERSONAS[personaFor(profile)];
+  const mood = MOODS[profile.mood];
+  elements.moodSelect.value = profile.mood;
+  elements.personaLevel.textContent = `LV.${mood.level}`;
+  if (elements.personaCharacter) {
+    elements.personaCharacter.textContent = persona.icon;
+    elements.personaCharacter.dataset.persona = persona.id;
+    elements.personaCharacter.style.setProperty('--persona-color', persona.color);
+  }
+  elements.personaName.textContent = persona.name;
+  elements.personaTone.textContent = `${persona.tone} / ${mood.description}`;
+  if (elements.dialogueSpeaker) elements.dialogueSpeaker.textContent = persona.name;
+  elements.syncRate.value = profile.syncRate;
+  elements.syncRateLabel.textContent = `${profile.syncRate}%`;
+  elements.debtRate.value = profile.debt;
+  elements.debtRateLabel.textContent = String(profile.debt);
+  elements.pilotDialogue.textContent = personaLine(persona, 'intro');
+}
+
+function announcePilot(type, readAloud = true) {
+  const persona = PERSONAS[state.profile?.personaId] || PERSONAS.teacher;
+  const title = state.currentMission?.title || '今日のミッション';
+  const line = personaLine(persona, type, title);
+  if (state.dialogueTimer) clearInterval(state.dialogueTimer);
+  const reducedMotion = globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  if (reducedMotion || line.length < 2) {
+    elements.pilotDialogue.textContent = line;
+  } else {
+    let index = 0;
+    elements.pilotDialogue.textContent = '';
+    state.dialogueTimer = setInterval(() => {
+      elements.pilotDialogue.textContent += line[index++];
+      if (index >= line.length) {
+        clearInterval(state.dialogueTimer);
+        state.dialogueTimer = null;
+      }
+    }, 26);
+  }
+  if (elements.dialogueSpeaker) elements.dialogueSpeaker.textContent = persona.name;
+  if (readAloud) {
+    const didSpeak = speak(line);
+    elements.interventionStatus.textContent = didSpeak
+      ? '音声介入を実行しました。停止できます。'
+      : 'このブラウザでは音声読み上げに対応していません。';
+  }
+}
+
+async function startShakeDetection() {
+  if (!state.shakeDetector) {
+    state.shakeDetector = createShakeDetector({
+      onShake: () => {
+        elements.interventionStatus.textContent = 'シェイクを検知しました。ミッション達成として記録します。';
+        toggleMissionComplete(true);
+      }
+    });
+  }
+  if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
+    const permission = await DeviceMotionEvent.requestPermission();
+    if (permission !== 'granted') {
+      elements.interventionStatus.textContent = 'モーションセンサーの許可が必要です。';
+      return;
+    }
+  }
+  if (state.shakeDetector.active) {
+    state.shakeDetector.stop();
+    elements.shakeBtn.textContent = '📱 シェイク判定を開始';
+    elements.interventionStatus.textContent = 'シェイク判定を停止しました。';
+    return;
+  }
+  const started = state.shakeDetector.start();
+  elements.shakeBtn.textContent = started ? '⏹ シェイク判定を停止' : '📱 センサー未対応';
+  elements.interventionStatus.textContent = started
+    ? 'シェイク判定中。停止ボタンで終了できます。'
+    : 'センサーを利用できないため、達成ボタンを使ってください。';
 }
 
 /**
@@ -412,10 +543,10 @@ function toggleMissionComplete(forceState = null) {
 function updateMissionStatusUI(isCompleted) {
   if (isCompleted) {
     elements.missionCard.classList.add('completed-mode');
-    elements.missionStatusBadge.textContent = '★ 達成完了！';
+    elements.missionStatusBadge.textContent = '★ CLEAR';
     elements.missionStatusBadge.className = 'badge-tag status-complete';
 
-    elements.completeBtn.innerHTML = '<span class="btn-star">✓</span> MISSION CLEARED!';
+    elements.completeBtn.innerHTML = '<span class="btn-star">✓</span> CLEAR済み';
     elements.completeBtn.classList.add('is-completed');
     elements.cancelMissionBtn.style.display = 'inline-block';
   } else {
@@ -423,7 +554,7 @@ function updateMissionStatusUI(isCompleted) {
     elements.missionStatusBadge.textContent = '未達成';
     elements.missionStatusBadge.className = 'badge-tag status-incomplete';
 
-    elements.completeBtn.innerHTML = '<span class="btn-star">★</span> MISSION COMPLETE!';
+    elements.completeBtn.innerHTML = '<span class="btn-star">★</span> ミッション達成';
     elements.completeBtn.classList.remove('is-completed');
     elements.cancelMissionBtn.style.display = 'none';
   }
