@@ -1,4 +1,4 @@
-const CACHE_NAME = 'life-pilot-shell-v4';
+const CACHE_NAME = 'life-pilot-shell-v5';
 const SHELL = ['./', './index.html', './style.css', './app.js', './weather.js', './mission.js', './ai.js', './ai-config.js', './profile.js', './intervention.js', './manifest.json'];
 
 self.addEventListener('install', event => {
