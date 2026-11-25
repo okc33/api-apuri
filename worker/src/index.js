@@ -15,7 +15,7 @@ function json(data, status = 200, origin = '*') {
       'Content-Type': 'application/json; charset=utf-8',
       'Access-Control-Allow-Origin': origin,
       'Access-Control-Allow-Headers': 'Content-Type',
-      'Access-Control-Allow-Methods': 'POST, OPTIONS'
+      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS'
     }
   });
 }
@@ -58,11 +58,15 @@ export default {
   async fetch(request, env) {
     const origin = env.ALLOWED_ORIGIN || '*';
     if (request.method === 'OPTIONS') return json({}, 204, origin);
-    if (request.method !== 'POST') return json({ error: 'Method not allowed' }, 405, origin);
-    if (!env.GEMINI_API_KEY) return json({ error: 'AI service is not configured' }, 503, origin);
+    const pathname = new URL(request.url).pathname;
+    if (request.method === 'GET' && pathname.endsWith('/api/health')) {
+      return json({ ok: true, worker: 'weather-mission-ai', geminiConfigured: Boolean(env.GEMINI_API_KEY) }, 200, origin);
+    }
+    if (request.method !== 'POST') return json({ error: 'Method not allowed', code: 'METHOD_NOT_ALLOWED' }, 405, origin);
+    if (!env.GEMINI_API_KEY) return json({ error: 'GEMINI_API_KEY is not configured in Cloudflare Worker secrets', code: 'MISSING_GEMINI_API_KEY' }, 503, origin);
 
     const contentLength = Number(request.headers.get('content-length') || 0);
-    if (contentLength > MAX_BODY_BYTES) return json({ error: 'Request too large' }, 413, origin);
+    if (contentLength > MAX_BODY_BYTES) return json({ error: 'Request too large', code: 'REQUEST_TOO_LARGE' }, 413, origin);
 
     try {
       const input = await request.json();
@@ -77,14 +81,14 @@ export default {
           })
         }
       );
-      if (!geminiResponse.ok) return json({ error: 'Upstream AI request failed' }, 502, origin);
+      if (!geminiResponse.ok) return json({ error: `Gemini API request failed (HTTP ${geminiResponse.status})`, code: 'GEMINI_REQUEST_FAILED' }, 502, origin);
       const modelData = await geminiResponse.json();
       const text = modelData.candidates?.[0]?.content?.parts?.[0]?.text || '';
       const missions = validatePayload({ ...input, ...extractJson(text) });
-      if (!missions.length) return json({ error: 'No safe missions generated' }, 502, origin);
+      if (!missions.length) return json({ error: 'Gemini returned no safe missions', code: 'NO_SAFE_MISSION' }, 502, origin);
       return json({ missions, source: 'gemini' }, 200, origin);
     } catch (error) {
-      return json({ error: error instanceof Error ? error.message : 'AI request failed' }, 502, origin);
+      return json({ error: error instanceof Error ? error.message : 'AI request failed', code: 'INVALID_GEMINI_RESPONSE' }, 502, origin);
     }
   }
 };

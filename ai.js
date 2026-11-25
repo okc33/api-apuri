@@ -39,18 +39,44 @@ export async function generateMissionCandidates({ weather, baseMission, preferen
   const endpoint = getAiEndpoint();
   if (!endpoint) throw new Error('AI endpoint is not configured');
 
-  const response = await fetch(endpoint, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-    body: JSON.stringify(buildMissionRequest(weather, baseMission, preferences)),
-    signal
-  });
-
-  if (!response.ok) {
-    throw new Error(`AI mission service error (${response.status})`);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15000);
+  if (signal) signal.addEventListener('abort', () => controller.abort(), { once: true });
+  try {
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify(buildMissionRequest(weather, baseMission, preferences)),
+      signal: controller.signal
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const detail = payload.error || `HTTP ${response.status}`;
+      const error = new Error(`AI候補生成に失敗しました: ${detail}`);
+      error.code = payload.code || `HTTP_${response.status}`;
+      error.status = response.status;
+      throw error;
+    }
+    return validateMissionCandidates(payload.missions, weather, baseMission, preferences);
+  } catch (error) {
+    if (error.name === 'AbortError') throw new Error('AI候補生成がタイムアウトしました（15秒）');
+    if (error instanceof TypeError) throw new Error('AI Workerへ接続できません。URL・公開設定・CORSを確認してください。');
+    throw error;
+  } finally {
+    clearTimeout(timeout);
   }
-  const payload = await response.json();
-  return validateMissionCandidates(payload.missions, weather, baseMission, preferences);
+}
+
+export async function checkAiHealth() {
+  const endpoint = getAiEndpoint();
+  if (!endpoint) throw new Error('AI Worker URLが設定されていません');
+  const healthUrl = `${endpoint.replace(/\/api\/missions\/?$/, '')}/api/health`;
+  const response = await fetch(healthUrl, { headers: { Accept: 'application/json' } });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok || !payload.ok) {
+    throw new Error(payload.error || `AI Worker health check failed (HTTP ${response.status})`);
+  }
+  return payload;
 }
 
 export function validateMissionCandidates(missions, weather, baseMission, preferences = {}) {

@@ -12,6 +12,14 @@ This Cloudflare Worker keeps the Gemini API key off the GitHub Pages client.
 window.WEATHER_MISSION_AI_ENDPOINT = 'https://<worker-subdomain>.workers.dev/api/missions';
 ```
 
+After deployment, verify the Worker with:
+
+```text
+GET https://<worker-subdomain>.workers.dev/api/health
+```
+
+The response includes `geminiConfigured: true` when the `GEMINI_API_KEY` secret is available. Never put the key in `ai-config.js`.
+
 The client intentionally has no default AI endpoint. This avoids making a request
 to a GitHub Pages 404 endpoint and makes the unconfigured state explicit in the UI.
 
