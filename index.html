@@ -33,7 +33,7 @@
   <script>
     (() => {
       const fallbackShow = (id) => {
-        const target = id === 'settings' ? 'settings-screen' : id;
+        const target = id === 'settings' ? 'settings-screen' : id === 'home' ? 'home-screen' : id;
         document.querySelectorAll('.screen').forEach((screen) => screen.classList.toggle('active-screen', screen.id === target));
       };
       document.addEventListener('click', (event) => {

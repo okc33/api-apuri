@@ -8,7 +8,7 @@ const state = { screen: 'title-screen', city: 'nagoya', locationMode: 'city', co
 const $ = (id) => document.getElementById(id);
 const els = { loading: $('loading-view'), error: $('error-view'), title: $('error-title'), errorMessage: $('error-message'), city: $('city-select'), demo: $('demo-select'), refresh: $('refresh-btn'), location: $('location-btn'), locationStatus: $('location-status'), homeCity: $('home-city'), homeTemp: $('home-temp'), homeRain: $('home-rain'), homeWeatherIcon: $('home-weather-icon'), missionTitle: $('mission-title'), missionDesc: $('mission-desc'), missionDuration: $('mission-duration'), missionCategory: $('mission-category'), missionReason: $('mission-reason'), missionStatus: $('mission-status'), timer: $('mission-timer'), progress: $('mission-progress'), syncReward: $('sync-reward'), debtReward: $('debt-reward'), historyCount: $('history-count'), historyList: $('history-list'), aiStatus: $('ai-status'), aiList: $('ai-candidate-list') };
 
-function showScreen(id) { const normalized = id === 'settings' ? 'settings-screen' : id; state.screen = normalized; document.querySelectorAll('.screen').forEach((screen) => screen.classList.toggle('active-screen', screen.id === normalized)); if (normalized === 'mission-screen' && state.mission) renderMission(); }
+function showScreen(id) { const normalized = id === 'settings' ? 'settings-screen' : id === 'home' ? 'home-screen' : id; state.screen = normalized; document.querySelectorAll('.screen').forEach((screen) => screen.classList.toggle('active-screen', screen.id === normalized)); if (normalized === 'mission-screen' && state.mission) renderMission(); }
 function setLoading(on) { els.loading.style.display = on ? 'grid' : 'none'; if (on) els.error.style.display = 'none'; }
 function renderError(title, message) { setLoading(false); els.error.style.display = 'grid'; els.title.textContent = title; els.errorMessage.textContent = message; }
 function loadHistory() { try { state.history = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]'); } catch { state.history = []; } renderHistory(); }
@@ -32,3 +32,56 @@ requestLocation = requestLocationV2;
 function bindEvents() { document.addEventListener('click', (event) => { const screenButton = event.target.closest('[data-screen]'); if (screenButton) showScreen(screenButton.dataset.screen); }); $('boot-btn').addEventListener('click', () => { showScreen('home-screen'); if (!state.weather) loadWeather(); }); document.querySelectorAll('.condition-item').forEach((button) => button.addEventListener('click', () => applyMood(button.dataset.mood))); $('condition-confirm').addEventListener('click', () => { if (!state.mission) loadWeather(); showScreen('mission-screen'); }); $('start-mission-btn').addEventListener('click', startMission); $('finish-mission-btn').addEventListener('click', completeMission); $('cancel-active-btn').addEventListener('click', cancelMission); $('mission-back-btn').addEventListener('click', () => showScreen('home-screen')); $('next-mission-btn').addEventListener('click', () => showScreen('home-screen')); $('home-refresh').addEventListener('click', loadWeather); els.refresh.addEventListener('click', loadWeather); els.location.addEventListener('click', requestLocation); els.city.addEventListener('change', () => { state.city = els.city.value; state.locationMode = 'city'; state.coordinates = null; loadWeather(); }); els.demo.addEventListener('change', () => els.demo.value === 'live' ? loadWeather() : applyDemo(els.demo.value)); $('retry-btn').addEventListener('click', loadWeather); $('fallback-demo-btn').addEventListener('click', () => { els.demo.value = 'outdoor_clear'; applyDemo('outdoor_clear'); }); $('generate-ai-btn').addEventListener('click', generateAi); els.aiList.addEventListener('click', (event) => { const button = event.target.closest('[data-candidate]'); if (!button) return; const candidate = els.aiList._candidates?.[Number(button.dataset.candidate)]; if (candidate) { state.mission = { ...candidate, completed: false }; renderMission(); showScreen('mission-screen'); } }); $('clear-history-btn').addEventListener('click', () => { state.history = []; localStorage.removeItem(HISTORY_KEY); renderHistory(); }); }
 function updateClock() { $('clock').textContent = new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }); }
 loadHistory(); bindEvents(); applyMood('normal'); updateClock(); setInterval(updateClock, 30000);
+
+// Keep the selected condition in sync with deterministic missions and let Gemini
+// enrich the command after the safe base mission has been selected.
+globalThis.__LIFE_PILOT_MOOD = state.mood;
+document.querySelectorAll('.condition-item').forEach((button) => button.addEventListener('click', () => {
+  globalThis.__LIFE_PILOT_MOOD = button.dataset.mood || 'normal';
+  if (state.weather) {
+    state.mission = determineMission(state.weather, globalThis.__LIFE_PILOT_MOOD);
+    renderMission();
+  }
+}));
+
+async function enrichMissionWithAi() {
+  if (!state.weather || !state.mission || !getAiEndpointSafe()) return;
+  try {
+    const candidates = await generateMissionCandidates({
+      weather: state.weather,
+      baseMission: state.mission,
+      preferences: {
+        environment: $('preference-environment')?.value || 'any',
+        durationMinutes: Number($('preference-duration')?.value || state.mission.durationMinutes),
+        intensity: 'light',
+        mood: state.profile.mood,
+        personaId: state.profile.personaId,
+        syncRate: state.profile.syncRate,
+        debt: state.profile.debt
+      }
+    });
+    if (candidates[0]) {
+      state.mission = { ...candidates[0], completed: false };
+      renderMission();
+      $('home-dialogue').textContent = candidates[0].description;
+    }
+  } catch {
+    // The deterministic safe mission remains active when the AI service is unavailable.
+  }
+}
+
+function getAiEndpointSafe() {
+  return String(globalThis.WEATHER_MISSION_AI_ENDPOINT || '').trim();
+}
+
+function syncConfirmedMission(attempt = 0) {
+  if (state.weather) {
+    state.mission = determineMission(state.weather, state.mood);
+    renderMission();
+    enrichMissionWithAi();
+    return;
+  }
+  if (attempt < 20) window.setTimeout(() => syncConfirmedMission(attempt + 1), 300);
+}
+
+$('condition-confirm').addEventListener('click', () => syncConfirmedMission());

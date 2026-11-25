@@ -79,7 +79,7 @@ export const MISSION_DEFINITIONS = {
  * @param {object} weatherData `fetchWeatherData` または `DEMO_PRESETS` が返すデータ構造
  * @returns {object} 構造化ミッションオブジェクト
  */
-export function determineMission(weatherData) {
+export function determineMission(weatherData, mood = globalThis.__LIFE_PILOT_MOOD || 'normal') {
   if (!weatherData) {
     throw new Error('判定対象の天気データが指定されていません。');
   }
@@ -93,31 +93,63 @@ export function determineMission(weatherData) {
 
   // 重要な値がすべて欠損している場合はフォールバック
   if (tempMax === null || tempMax === undefined || isNaN(tempMax)) {
-    return buildMission(MISSION_DEFINITIONS.DATA_FALLBACK, weatherData, 'tempMax_missing');
+    return applyMoodMission(buildMission(MISSION_DEFINITIONS.DATA_FALLBACK, weatherData, 'tempMax_missing'), weatherData, mood);
   }
 
   // 優先順位 1: 今日の最高気温が 35℃ 以上
   if (tempMax >= 35.0) {
-    return buildMission(MISSION_DEFINITIONS.EXTREME_HEAT, weatherData, `tempMax (${tempMax}℃) >= 35℃`);
+    return applyMoodMission(buildMission(MISSION_DEFINITIONS.EXTREME_HEAT, weatherData, `tempMax (${tempMax}℃) >= 35℃`), weatherData, mood);
   }
 
   // 優先順位 2: 大雨・雷雨に該当する天候コード
   if (weatherCode !== null && weatherCode !== undefined && isSevereRainOrThunder(weatherCode)) {
-    return buildMission(MISSION_DEFINITIONS.SEVERE_WEATHER, weatherData, `severe weather code (${weatherCode})`);
+    return applyMoodMission(buildMission(MISSION_DEFINITIONS.SEVERE_WEATHER, weatherData, `severe weather code (${weatherCode})`), weatherData, mood);
   }
 
   // 優先順位 3: 今日の最大降水確率が 60% 以上
   if (precipProbMax !== null && precipProbMax !== undefined && !isNaN(precipProbMax) && precipProbMax >= 60) {
-    return buildMission(MISSION_DEFINITIONS.HIGH_PRECIP_PROB, weatherData, `precipProbMax (${precipProbMax}%) >= 60%`);
+    return applyMoodMission(buildMission(MISSION_DEFINITIONS.HIGH_PRECIP_PROB, weatherData, `precipProbMax (${precipProbMax}%) >= 60%`), weatherData, mood);
   }
 
   // 優先順位 4: 今日の最高気温が 10℃ 未満
   if (tempMax < 10.0) {
-    return buildMission(MISSION_DEFINITIONS.COLD_WEATHER, weatherData, `tempMax (${tempMax}℃) < 10℃`);
+    return applyMoodMission(buildMission(MISSION_DEFINITIONS.COLD_WEATHER, weatherData, `tempMax (${tempMax}℃) < 10℃`), weatherData, mood);
   }
 
   // 優先順位 5: それ以外（屋外行動推奨）
-  return buildMission(MISSION_DEFINITIONS.OUTDOOR_WALK, weatherData, 'all weather conditions suitable for outdoor');
+  const baseMission = buildMission(MISSION_DEFINITIONS.OUTDOOR_WALK, weatherData, 'all weather conditions suitable for outdoor');
+  return applyMoodMission(baseMission, weatherData, mood);
+}
+
+function applyMoodMission(mission, weatherData, mood) {
+  if (mood === 'normal') return mission;
+
+  const safeIndoor = (definition, matchedCondition) => buildMission(definition, weatherData, matchedCondition);
+
+  if (mood === 'low') {
+    return { ...safeIndoor(MISSION_DEFINITIONS.EXTREME_HEAT, 'mood_low_recovery'), ...{
+      title: '室内で5分リカバリー',
+      durationMinutes: 5,
+      description: '無理をせず、肩と首をゆっくり回して深呼吸します。水分も一口とりましょう。',
+      reason: '不調時は負荷を下げ、回復を優先するため'
+    }};
+  }
+
+  if (mood === 'debt') {
+    const definition = MISSION_DEFINITIONS.HIGH_PRECIP_PROB;
+    return { ...safeIndoor(definition, 'mood_debt_reset'), ...{
+      title: '5分のツケ回収トレーニング',
+      durationMinutes: 5,
+      description: '室内でスクワットや足踏みを無理のない範囲で5分間行い、先延ばしを一つ返済します。',
+      reason: 'サボりへのツケを小さな行動で回収するため'
+    }};
+  }
+
+  if (mood === 'high' && mission.category === 'outdoor_walk') {
+    return { ...mission, title: '絶好調の20分ブーストウォーク', durationMinutes: 20, description: '安全な道を選び、少し速めのペースで20分歩いて今日の勢いを伸ばします。', reason: '絶好調なので、通常より少し高い負荷に挑戦するため' };
+  }
+
+  return mission;
 }
 
 /**
