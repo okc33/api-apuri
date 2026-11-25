@@ -1,4 +1,4 @@
-const DEFAULT_AI_ENDPOINT = '/api/missions';
+const DEFAULT_AI_ENDPOINT = '';
 
 const ALLOWED_CATEGORIES = new Set([
   'indoor_stretch',
@@ -8,7 +8,7 @@ const ALLOWED_CATEGORIES = new Set([
 ]);
 
 export function getAiEndpoint() {
-  return globalThis.WEATHER_MISSION_AI_ENDPOINT || DEFAULT_AI_ENDPOINT;
+  return String(globalThis.WEATHER_MISSION_AI_ENDPOINT || DEFAULT_AI_ENDPOINT).trim();
 }
 
 export function buildMissionRequest(weather, baseMission, preferences) {
@@ -36,8 +36,10 @@ export function buildMissionRequest(weather, baseMission, preferences) {
 
 export async function generateMissionCandidates({ weather, baseMission, preferences, signal } = {}) {
   if (!weather || !baseMission) throw new Error('Weather and base mission are required');
+  const endpoint = getAiEndpoint();
+  if (!endpoint) throw new Error('AI endpoint is not configured');
 
-  const response = await fetch(getAiEndpoint(), {
+  const response = await fetch(endpoint, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
     body: JSON.stringify(buildMissionRequest(weather, baseMission, preferences)),

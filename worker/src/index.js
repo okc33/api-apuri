@@ -1,4 +1,4 @@
-const MODEL = 'gemini-2.5-flash';
+const MODEL = 'gemini-2.5-flash-lite';
 const MAX_BODY_BYTES = 16_000;
 
 const allowedCategories = new Set([

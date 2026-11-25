@@ -1,69 +1,55 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#101827">
-  <title>Life Pilot: Reboot — 今日のミッション</title>
-  <meta name="description" content="AIパイロットと生活ミッションに挑むレトロバトル風PWA">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#15113d">
+  <title>Life Pilot: Reboot</title>
+  <meta name="description" content="天気と気分に合わせて、今日の小さなミッションを提案する生活リズムアプリ">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DotGothic16&family=Press+Start+2P&display=swap" rel="stylesheet">
   <link rel="icon" href="./icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="./style.css">
   <link rel="manifest" href="./manifest.json">
+  <link rel="stylesheet" href="./style.css">
 </head>
 <body>
-  <div class="scanlines" aria-hidden="true"></div>
-  <div class="device-frame">
-    <header class="app-header">
-      <div class="system-status"><span class="status-dot"></span><span> LIFE PILOT // ONLINE</span></div>
-      <h1 class="glitch-title">LIFE PILOT: REBOOT</h1>
-      <p class="tagline">あなたの今日を、パイロットが操縦する。</p>
-    </header>
-
-    <details class="setup-panel pixel-box">
-      <summary class="setup-summary"><span>⚙️ エリア・デモ設定</span><span>開く ▼</span></summary>
-      <div class="setup-content">
-        <div class="control-row">
-          <label for="city-select" class="pixel-label">エリア</label>
-          <select id="city-select" class="pixel-select"><option value="nagoya" selected>名古屋</option><option value="tokyo">東京</option><option value="osaka">大阪</option></select>
-          <button id="refresh-btn" class="pixel-btn" title="最新データを再取得">↻ 更新</button><button id="location-btn" class="pixel-btn location-btn" type="button">📍 現在地</button>
-        </div>
-        <p id="location-status" class="location-status" role="status"></p>
-        <div class="demo-switch-row"><label for="demo-select" class="pixel-label demo-label"><span class="badge-demo">DEMO</span> 検証シナリオ</label><select id="demo-select" class="pixel-select demo-select"><option value="live">⚡ リアルタイム天気</option><option value="heatwave">🔥 猛暑日</option><option value="severe_rain">⛈️ 大雨・雷雨</option><option value="high_precip">🌧️ 高い降水確率</option><option value="cold">❄️ 寒冷</option><option value="outdoor_clear">🚶 快適な晴れ</option></select></div>
-      </div>
-    </details>
-
-    <main id="main-content" class="main-content">
-      <div id="loading-view" class="state-view pixel-box loading-box" style="display:none" role="status"><div class="pixel-spinner"></div><p class="loading-text">今日の対戦相手を探しています…</p></div>
-      <div id="error-view" class="state-view pixel-box error-box" style="display:none" role="alert"><div class="error-badge">⚠️ 通信エラー</div><h2 id="error-title" class="error-title">データ取得に失敗しました</h2><p id="error-message" class="error-message"></p><div class="error-actions"><button id="retry-btn" class="pixel-btn retry-btn">再試行</button><button id="fallback-demo-btn" class="pixel-btn demo-btn">デモで試す</button></div></div>
-
-      <div id="success-view" class="state-view">
-        <div id="demo-notice-banner" class="demo-banner pixel-box" style="display:none"><span class="demo-flag">DEMO MODE</span><span id="demo-notice-text">固定データで対戦中</span></div>
-        <section class="battle-stage" aria-label="今日の対戦画面">
-          <div class="battle-header"><div><span class="battle-kicker">TODAY'S BATTLE</span><strong>生活リズム対戦</strong></div><span class="battle-round">ROUND 01</span></div>
-          <div class="arena">
-            <div class="fighter fighter-player"><div class="fighter-label">あなた / 機体</div><div class="fighter-sprite player-sprite" aria-hidden="true">◈</div><div class="fighter-name">LIFE PILOT</div><div class="fighter-hp"><span>規律 HP</span><progress max="100" value="72"></progress><strong>72</strong></div></div>
-            <div class="versus-mark" aria-hidden="true">VS</div>
-            <div class="fighter fighter-opponent"><div class="fighter-label">今日のパイロット <span id="persona-level" class="level-badge">LV.2</span></div><div id="persona-character" class="fighter-sprite opponent-sprite" aria-hidden="true">📚</div><div id="persona-name" class="fighter-name">担任の先生</div><span id="persona-tone" class="fighter-role">淡々と丁寧</span><div class="fighter-hp opponent-hp"><span>シンクロ率</span><progress id="sync-rate" max="100" value="20"></progress><strong id="sync-rate-label">20%</strong></div></div>
-          </div>
-          <div class="battle-status-row"><span>サボりへのツケ</span><progress id="debt-rate" max="10" value="0"></progress><strong id="debt-rate-label">0</strong></div>
-          <div class="dialogue-box"><span id="dialogue-speaker" class="dialogue-speaker">担任の先生</span><p id="pilot-dialogue" aria-live="polite">パイロットを起動しています。</p></div>
-          <div class="intervention-actions"><label class="mood-control" for="mood-select">今日の気分<select id="mood-select" class="pixel-select"><option value="low">不調 / 回復優先</option><option value="normal" selected>通常 / リズム維持</option><option value="high">絶好調 / 限界突破</option><option value="debt">サボり期 / ツケ回収</option></select></label><button id="speak-btn" class="pixel-btn" type="button">🔊 読み上げ</button><button id="stop-intervention-btn" class="pixel-btn-secondary" type="button">停止</button></div>
-          <p id="intervention-status" class="pilot-subtext" role="status"></p>
-        </section>
-
-        <section class="mission-card pixel-box" aria-label="今日のミッション"><div class="card-header mission-header"><span class="section-tag">NEXT ACTION</span><span id="mission-rule-badge" class="rule-badge">通常ミッション</span></div><div class="mission-body"><div class="mission-title-row"><span class="mission-bullet">▶</span><h2 id="mission-title" class="mission-title">外に出て10分間歩く</h2></div><p id="mission-desc" class="mission-desc">外の空気を吸いながら、近所を10分間歩きましょう。</p><div class="mission-reason-box"><span class="reason-label">この行動を選んだ理由</span><p id="mission-reason" class="reason-text">今日の天気と安全条件から、今できる小さな行動を選びました。</p></div><div class="mission-meta-row"><span class="badge-tag" id="mission-category">屋外行動</span><span class="badge-tag" id="mission-duration">⏱️ 所要 10 分</span><span class="badge-tag status-incomplete" id="mission-status-badge">未達成</span></div></div><div class="mission-actions"><button id="complete-btn" class="pixel-btn mission-action-btn"><span class="btn-star">★</span> ミッション達成</button><button id="cancel-mission-btn" class="pixel-btn-secondary" style="display:none">未達成に戻す</button><button id="shake-btn" class="pixel-btn-secondary" type="button">📱 シェイク判定</button></div></section>
-
-        <details class="info-panel weather-card pixel-box" aria-label="今日の天候"><summary class="details-summary"><span>🌤️ 今日の天候 <strong id="target-city-name">名古屋</strong></span><span>見る ▼</span></summary><div class="info-panel-content"><div class="card-header"><span class="section-tag">WEATHER REPORT</span></div><div class="weather-grid"><div class="weather-icon-wrap"><span id="weather-icon" class="weather-icon" role="img" aria-label="天候アイコン">☀️</span><span id="weather-label" class="weather-label">快晴</span></div><div class="weather-metrics"><div class="metric-item"><span class="metric-label">現在気温</span><span class="metric-val"><span id="temp-current">--</span><span class="unit">°C</span></span></div><div class="metric-item"><span class="metric-label">最高気温</span><span class="metric-val highlight-temp"><span id="temp-max">--</span><span class="unit">°C</span></span></div><div class="metric-item"><span class="metric-label">降水確率</span><span class="metric-val highlight-rain"><span id="precip-prob">--</span><span class="unit">%</span></span></div></div></div><div class="weather-footer"><span>予報対象日: <strong id="forecast-date">----/--/--</strong></span><span>受信時刻: <strong id="fetched-time">--:--</strong></span></div></div></details>
-
-        <details class="info-panel ai-panel pixel-box" aria-label="AIミッション候補"><summary class="details-summary"><span>✨ 追加作戦を考えてもらう</span><span>開く ▼</span></summary><div class="info-panel-content"><div class="preference-row"><label>場所<select id="preference-environment" class="pixel-select"><option value="any">おまかせ</option><option value="indoor">室内</option><option value="outdoor">屋外</option></select></label><label>時間<select id="preference-duration" class="pixel-select"><option value="5">5分</option><option value="10" selected>10分</option><option value="20">20分</option></select></label><label>強度<select id="preference-intensity" class="pixel-select"><option value="light" selected>軽め</option><option value="moderate">普通</option></select></label></div><button id="generate-ai-btn" class="pixel-btn" type="button">AI候補を生成</button><p id="ai-status" class="ai-status" role="status">固定ミッションを表示中。</p><div id="ai-candidate-list" class="ai-candidate-list" aria-live="polite"></div></div></details>
-        <section class="history-section pixel-box" aria-label="ミッション達成記録"><details id="history-details"><summary class="details-summary"><span>📜 達成ログ (<span id="history-count">0</span>件)</span><span>開く ▼</span></summary><div class="history-content"><div class="history-controls"><button id="clear-history-btn" class="pixel-btn-tiny" title="履歴を消去">ログ消去</button></div><ul id="history-list" class="history-list"><li class="empty-log">達成ログはまだありません。</li></ul></div></details></section>
-      </div>
+  <div class="crt-noise" aria-hidden="true"></div>
+  <div class="phone-shell">
+    <div class="status-bar"><span id="clock">08:24</span><span>▮▮▮　▰</span></div>
+    <main id="app" class="app-screen">
+      <section id="title-screen" class="screen title-screen active-screen" aria-label="タイトル画面"><div class="title-art" aria-hidden="true"></div><div class="title-copy"><p class="eyebrow">✦ LIFE PILOT PROJECT ✦</p><h1>Life Pilot<span>: Reboot</span></h1><p>〜 今日の自分を操縦する<br>究極の生活リズムハック 〜</p></div><div class="title-actions"><button id="boot-btn" class="game-btn primary" type="button" onclick="document.getElementById('title-screen').classList.remove('active-screen');document.getElementById('home-screen').classList.add('active-screen')">▶ 機体を起動する</button><button class="game-btn ghost" data-screen="settings-screen">設定</button><button class="game-btn ghost" data-screen="settings-screen">データ</button><button class="game-btn ghost" data-screen="settings-screen">？ 使い方</button></div><p class="title-version">LIFE PILOT // REBOOT v1.0</p></section>
+      <section id="home-screen" class="screen" aria-label="ホーム"><header class="screen-header"><div><span class="eyebrow">TODAY'S CONDITION</span><h2>今日のコンディション</h2></div><button class="icon-btn" data-screen="settings" aria-label="設定">⚙</button></header><div class="mentor-card"><img src="./assets/art/mentor.png" alt="案内役の先生" class="mentor-art"><div class="dialogue"><span class="speaker">パイロット教官</span><p id="home-dialogue">今のキミの状態を教えてくれ！それに合わせたミッションを呼び出すぞ！</p></div></div><div class="condition-list" role="radiogroup" aria-label="今日の気分"><button class="condition-item" data-mood="high"><span class="condition-icon good">☺</span><span><strong>絶好調！</strong><small>限界突破モード Lv3</small></span></button><button class="condition-item selected" data-mood="normal"><span class="condition-icon normal">●</span><span><strong>ふつう</strong><small>リズム維持モード Lv2</small></span></button><button class="condition-item" data-mood="low"><span class="condition-icon low">◡</span><span><strong>ちょっと不調…</strong><small>養生・レスキューモード Lv1</small></button><button class="condition-item" data-mood="debt"><span class="condition-icon debt">∿</span><span><strong>サボり気味…</strong><small>ペナルティ・強制介入 Lv4</small></span></button></div><button id="condition-confirm" class="game-btn primary wide">決定！</button><div class="home-weather mini-panel"><span id="home-weather-icon">☀</span><div><b id="home-city">名古屋</b><small><span id="home-temp">--</span>℃　降水 <span id="home-rain">--</span>%</small></div><button id="home-refresh" class="icon-btn" aria-label="天気を更新">↻</button></div></section>
+      <section id="mission-screen" class="screen" aria-label="ミッション"><header class="screen-header"><div><span class="eyebrow">MISSION ORDER</span><h2>ミッション指令！</h2></div><span class="level-chip" id="mission-level">Lv 2</span></header><div class="mission-weather scene-card"><div class="school-scene" aria-hidden="true">☀　✦　☁<br><span>今日の空模様</span></div><div class="hp-panel"><span>パイロット HP</span><div class="bar"><i id="player-hp" style="width:78%"></i></div><b id="player-hp-label">78 / 100</b></div></div><div class="mission-dialogue dialogue"><span class="speaker" id="mission-speaker">パイロット教官</span><p id="mission-dialogue">よし！今からできる、ちょうどいい行動を選ぼう！</p></div><article class="mission-card"><div class="mission-card-heading"><span class="quest-icon">▣</span><div><span class="eyebrow">[集中タスク]</span><h3 id="mission-title">ミッションを読み込み中…</h3></div></div><p id="mission-desc">今日のコンディションに合う小さな一歩を準備しています。</p><div class="mission-meta"><span id="mission-category">生活リズム</span><span>⏱ <b id="mission-duration">10</b>分</span><span id="mission-status">未達成</span></div><div class="reason-box"><b>このミッションの理由</b><p id="mission-reason">天気と現在の状態から、無理なく実行できる行動を選びました。</p></div></article><button id="start-mission-btn" class="game-btn primary wide">▶ ミッション開始！</button><button id="mission-back-btn" class="game-btn ghost wide">ちょっと待って…</button></section>
+      <section id="active-screen" class="screen" aria-label="ミッション実行中"><header class="screen-header centered"><span class="eyebrow">MISSION IN PROGRESS…</span><h2>ミッション実行中…</h2></header><div class="active-scene"><div class="room-art" aria-hidden="true">☾　▣　▤<br><small>FOCUS ROOM</small></div><div class="timer-label">集中タイム</div><div id="mission-timer" class="timer">10:00</div><p>スマホを机に水平に置いて<br>ミッションに集中してください</p><div class="progress-track"><i id="mission-progress"></i></div><div class="check-list"><span>✓ 水平状態を維持中！</span><span>✓ 集中ミッション実行中…</span></div></div><button id="finish-mission-btn" class="game-btn primary wide">ミッションを完了する</button><button id="cancel-active-btn" class="game-btn ghost wide">中断する</button></section>
+      <section id="complete-screen" class="screen" aria-label="ミッション達成"><div class="completion-burst">✦</div><h2 class="complete-title">ミッション達成！</h2><p class="complete-subtitle">＋シンクロ率 UP!</p><img src="./assets/art/mentor.png" alt="喜ぶ案内役" class="complete-art"><div class="dialogue"><span class="speaker">パイロット教官</span><p>やったわ！さすがね！ちゃんとやり切ったじゃない！</p></div><div class="reward-card"><span>♡ シンクロ率（絆）</span><strong id="sync-reward">42% ▶ 48%（+6%）</strong><div class="bar"><i style="width:48%"></i></div></div><div class="reward-card"><span>🔗 サボりへのツケ</span><strong id="debt-reward">12 ▶ 12（変化なし）</strong></div><button id="next-mission-btn" class="game-btn primary wide">次のミッションへ</button></section>
+      <section id="settings-screen" class="screen" aria-label="設定"><header class="screen-header"><div><span class="eyebrow">SYSTEM</span><h2>設定</h2></div><button class="icon-btn" data-screen="home">×</button></header><div class="settings-card"><label>エリア<select id="city-select" class="pixel-select"><option value="nagoya" selected>名古屋</option><option value="tokyo">東京</option><option value="osaka">大阪</option></select></label><button id="location-btn" class="game-btn ghost">現在地を使う</button><label>デモシナリオ<select id="demo-select" class="pixel-select"><option value="live">リアルタイム天気</option><option value="heatwave">猛暑日</option><option value="severe_rain">大雨・雷雨</option><option value="high_precip">高い降水確率</option><option value="cold">寒い日</option><option value="outdoor_clear">快適な晴天</option></select></label><button id="refresh-btn" class="game-btn secondary">↻ 天気を更新</button><p id="location-status" class="status-text"></p></div><details class="settings-card"><summary>AIミッション候補</summary><div class="preference-row"><label>場所<select id="preference-environment" class="pixel-select"><option value="any">おまかせ</option><option value="indoor">室内</option><option value="outdoor">屋外</option></select></label><label>時間<select id="preference-duration" class="pixel-select"><option value="5">5分</option><option value="10" selected>10分</option><option value="20">20分</option></select></label></div><button id="generate-ai-btn" class="game-btn secondary">AI候補を生成</button><p id="ai-status" class="status-text"></p><div id="ai-candidate-list" class="ai-candidate-list"></div></details><details class="settings-card"><summary>達成ログ（<span id="history-count">0</span>件）</summary><button id="clear-history-btn" class="game-btn ghost">ログを消去</button><ul id="history-list" class="history-list"><li>まだ達成ログはありません。</li></ul></details><button class="game-btn primary wide" data-screen="home">ホームへ戻る</button></section>
+      <div id="loading-view" class="overlay-state" style="display:none"><div class="pixel-spinner"></div><p>今日のミッションを探しています…</p></div><div id="error-view" class="overlay-state error-state" style="display:none"><h2 id="error-title">通信エラー</h2><p id="error-message"></p><button id="retry-btn" class="game-btn primary">再試行</button><button id="fallback-demo-btn" class="game-btn ghost">デモで試す</button></div>
     </main>
-    <footer class="app-footer"><div class="disclaimer">※ 体調と周囲の安全を最優先にしてください。無理な行動は中止してください。</div><div class="credits"><span>Weather Data: <a href="https://open-meteo.com/" target="_blank" rel="noopener noreferrer">Open-Meteo API</a></span><span class="separator">|</span><span>Life Pilot: Reboot prototype</span></div></footer>
+    <nav class="bottom-nav" aria-label="メインナビゲーション"><button data-screen="home-screen">⌂<small>ホーム</small></button><button data-screen="mission-screen">⚑<small>ミッション</small></button><button data-screen="settings-screen">⚙<small>設定</small></button></nav><footer class="app-footer">Life Pilot: Reboot prototype　|　Weather data: Open-Meteo</footer>
   </div>
-  <script type="module" src="./app.js"></script><script>if ('serviceWorker' in navigator && (location.protocol === 'http:' || location.protocol === 'https:')) navigator.serviceWorker.register('./sw.js').catch(() => {});</script>
+  <script src="./ai-config.js"></script>
+  <script type="module" src="./app.js"></script>
+  <script>
+    (() => {
+      const fallbackShow = (id) => {
+        const target = id === 'settings' ? 'settings-screen' : id;
+        document.querySelectorAll('.screen').forEach((screen) => screen.classList.toggle('active-screen', screen.id === target));
+      };
+      document.addEventListener('click', (event) => {
+        const button = event.target.closest('button');
+        if (!button) return;
+        if (button.classList.contains('condition-item')) {
+          document.querySelectorAll('.condition-item').forEach((item) => item.classList.toggle('selected', item === button));
+        }
+        if (button.dataset.screen) fallbackShow(button.dataset.screen);
+        if (button.id === 'condition-confirm') fallbackShow('mission-screen');
+        if (button.id === 'start-mission-btn') fallbackShow('active-screen');
+        if (button.id === 'finish-mission-btn') fallbackShow('complete-screen');
+        if (button.id === 'cancel-active-btn' || button.id === 'mission-back-btn' || button.id === 'next-mission-btn') fallbackShow('home-screen');
+      });
+    })();
+  </script>
+  <script>if ('serviceWorker' in navigator && /^https?:/.test(location.protocol)) navigator.serviceWorker.register('./sw.js').catch(() => {});</script>
 </body>
 </html>
